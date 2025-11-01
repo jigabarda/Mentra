@@ -2,17 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import {
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,86 +28,110 @@ export default function DashboardPage() {
     totalInterviews: 0,
     totalResumes: 0,
   });
-  const [resumeTrends, setResumeTrends] = useState<ResumeData[]>([]);
-  const [interviewTrends, setInterviewTrends] = useState<InterviewData[]>([]);
+  const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      try {
-        // Fetch latest resume analysis
-        const { data: resumeData } = await supabase
-          .from("resume_analysis")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+      // Fetch all resume analyses for trend calculation
+      const { data: resumeData } = await supabase
+        .from("resume_analysis")
+        .select("*")
+        .order("created_at", { ascending: true });
 
-        // Fetch latest interview session
-        const { data: interviewData } = await supabase
-          .from("interview_sessions")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+      // Fetch all interview sessions
+      const { data: interviewData } = await supabase
+        .from("interview_sessions")
+        .select("*")
+        .order("created_at", { ascending: true });
 
-        // Fetch analytics summary
-        const { count: totalResumes } = await supabase
-          .from("resume_analysis")
-          .select("*", { count: "exact", head: true });
-
-        const { count: totalInterviews } = await supabase
-          .from("interview_sessions")
-          .select("*", { count: "exact", head: true });
-
-        const { data: avgScoreData } = await supabase
-          .from("resume_analysis")
-          .select("score");
-
-        const avgScore =
-          avgScoreData && avgScoreData.length > 0
-            ? avgScoreData.reduce((sum, s) => sum + (s.score ?? 0), 0) /
-              avgScoreData.length
-            : 0;
-
-        // Fetch trend data
-        const { data: resumeTrendData } = await supabase
-          .from("resume_analysis")
-          .select("score, feedback, created_at")
-          .order("created_at", { ascending: true });
-
-        const { data: interviewTrendData } = await supabase
-          .from("interview_sessions")
-          .select("question, feedback, created_at")
-          .order("created_at", { ascending: true });
-
-        setResume(resumeData);
-        setInterview(interviewData);
-        setResumeTrends(
-          resumeTrendData?.map((r) => ({
-            score: r.score ?? 0,
-            feedback: r.feedback ?? "No feedback",
-            created_at: r.created_at,
-          })) || []
-        );
-        setInterviewTrends(
-          interviewTrendData?.map((i) => ({
-            question: i.question ?? "No question",
-            feedback: i.feedback ?? "No feedback",
-            created_at: i.created_at,
-          })) || []
-        );
-
-        setStats({
-          avgScore: Math.round(avgScore),
-          totalInterviews: totalInterviews || 0,
-          totalResumes: totalResumes || 0,
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
+      if (!resumeData || !interviewData) {
         setLoading(false);
+        return;
       }
+
+      // Latest records
+      const latestResume = resumeData[resumeData.length - 1] || null;
+      const latestInterview = interviewData[interviewData.length - 1] || null;
+
+      // Analytics
+      const avgScore =
+        resumeData.reduce((sum, r) => sum + (r.score ?? 0), 0) /
+        (resumeData.length || 1);
+
+      const totalResumes = resumeData.length;
+      const totalInterviews = interviewData.length;
+
+      // Smart trend analysis
+      const insightsGenerated: string[] = [];
+
+      // Compare scores (month-over-month)
+      if (resumeData.length >= 2) {
+        const prev = resumeData[resumeData.length - 2].score;
+        const curr = latestResume.score;
+        const diff = curr - prev;
+        if (diff > 0) {
+          insightsGenerated.push(
+            `Your average resume score improved by ${diff.toFixed(
+              1
+            )}% compared to the previous analysis. Great progress!`
+          );
+        } else if (diff < 0) {
+          insightsGenerated.push(
+            `Your latest resume score dropped by ${Math.abs(diff).toFixed(
+              1
+            )}%. Review your recent changes to strengthen it again.`
+          );
+        } else {
+          insightsGenerated.push(
+            `Your resume performance remains consistent. Keep refining details for better results.`
+          );
+        }
+      }
+
+      // Interview activity trend
+      if (interviewData.length >= 2) {
+        const recentTwo = interviewData.slice(-2);
+        const prevDate = new Date(recentTwo[0].created_at);
+        const currDate = new Date(recentTwo[1].created_at);
+        const diffDays =
+          (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24);
+        insightsGenerated.push(
+          `Your interview practice interval is about ${Math.round(
+            diffDays
+          )} days apart. Keeping a steady rhythm is key for confidence.`
+        );
+      }
+
+      // Resume & Interview correlation
+      if (resumeData.length > 3 && interviewData.length > 3) {
+        const resumeImprovement =
+          resumeData[resumeData.length - 1].score - resumeData[0].score;
+        if (resumeImprovement > 5) {
+          insightsGenerated.push(
+            `Your resume score improved by ${resumeImprovement.toFixed(
+              1
+            )}% overall — a sign of steady career development!`
+          );
+        }
+      }
+
+      // General summary
+      if (totalResumes > 0 && totalInterviews > 0) {
+        insightsGenerated.push(
+          `You've analyzed ${totalResumes} resumes and completed ${totalInterviews} interviews — consistency is building your professional growth!`
+        );
+      }
+
+      setResume(latestResume);
+      setInterview(latestInterview);
+      setStats({
+        avgScore: Math.round(avgScore),
+        totalInterviews,
+        totalResumes,
+      });
+      setInsights(insightsGenerated);
+      setLoading(false);
     };
 
     fetchDashboardData();
@@ -130,7 +143,7 @@ export default function DashboardPage() {
     );
 
   return (
-    <div className="max-w-6xl mx-auto mt-10 px-4">
+    <div className="max-w-5xl mx-auto mt-10">
       <h1 className="text-3xl font-bold mb-6 text-gray-900">
         Career Dashboard
       </h1>
@@ -157,67 +170,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Resume Score Trend Chart */}
-      {resumeTrends.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow mb-10">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">
-            Resume Score Trend
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={resumeTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="created_at"
-                tickFormatter={(date) =>
-                  new Date(date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
-                }
-              />
-              <YAxis domain={[0, 100]} />
-              <Tooltip
-                labelFormatter={(date) => new Date(date).toLocaleString()}
-              />
-              <Line
-                type="monotone"
-                dataKey="score"
-                stroke="#3b82f6"
-                strokeWidth={3}
-                dot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Interview Frequency Chart */}
-      {interviewTrends.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">
-            Interview Sessions Over Time
-          </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={interviewTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="created_at"
-                tickFormatter={(date) =>
-                  new Date(date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
-                }
-              />
-              <YAxis />
-              <Tooltip
-                labelFormatter={(date) => new Date(date).toLocaleString()}
-              />
-              <Bar dataKey="question" fill="#8b5cf6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* Insights Section */}
+      <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow mb-8">
+        <h2 className="text-xl font-semibold mb-3 text-gray-800">
+          Career Insights
+        </h2>
+        {insights.length > 0 ? (
+          <ul className="list-disc list-inside space-y-2 text-gray-700">
+            {insights.map((tip, i) => (
+              <li key={i}>{tip}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-gray-500">
+            No insights available yet. Try adding more analyses and interviews.
+          </p>
+        )}
+      </div>
 
       {/* Recent Resume Feedback */}
       {resume && (

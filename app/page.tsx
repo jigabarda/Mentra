@@ -9,10 +9,10 @@ export default function Home() {
         Your AI-powered career coach for resume analysis and interview prep.
       </p>
       <div className="space-x-3">
-        <Link href="/resume-analyzer">
+        <Link href="/dashboard/analyze">
           <Button>Analyze My Resume</Button>
         </Link>
-        <Link href="/interview-coach">
+        <Link href="/interview">
           <Button variant="outline">Start Mock Interview</Button>
         </Link>
       </div>
