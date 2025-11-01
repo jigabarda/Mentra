@@ -10,6 +10,7 @@ export default function Navbar() {
     { href: "/", label: "Home" },
     { href: "/dashboard", label: "Dashboard" },
     { href: "/interview", label: "Interview Coach" },
+    { href: "/interview/history", label: "Interview History" },
   ];
 
   return (
