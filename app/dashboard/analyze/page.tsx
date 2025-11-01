@@ -24,7 +24,6 @@ export default function AnalyzeResume() {
   const extractTextFromFile = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
 
-    // ✅ Handle PDF files (type-safe dynamic import)
     if (file.name.toLowerCase().endsWith(".pdf")) {
       const pdfModule = await import("pdf-parse");
       const pdfParse: (dataBuffer: Buffer) => Promise<{ text: string }> =
@@ -36,7 +35,6 @@ export default function AnalyzeResume() {
       return pdfData.text;
     }
 
-    // ✅ Handle DOCX files
     if (file.name.toLowerCase().endsWith(".docx")) {
       const result = await mammoth.extractRawText({ arrayBuffer });
       return result.value;
@@ -47,7 +45,7 @@ export default function AnalyzeResume() {
     );
   };
 
-  // 🧠 Analyze resume content
+  // 🧠 Analyze resume text
   const analyzeResumeText = (text: string) => {
     const wordCount = text.split(/\s+/).length;
     const hasSkills = /skills?/i.test(text);
@@ -85,7 +83,7 @@ export default function AnalyzeResume() {
     return { score, feedback };
   };
 
-  // 🚀 Handle analysis
+  // 🚀 Handle full analysis and upload
   const handleAnalyze = async () => {
     if (!file) {
       setError("Please upload your resume file first.");
@@ -96,29 +94,52 @@ export default function AnalyzeResume() {
     setError(null);
 
     try {
+      // 1️⃣ Extract text for analysis
       const text = await extractTextFromFile(file);
       const analysis = analyzeResumeText(text);
 
+      // 2️⃣ Get user
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user) {
-        await supabase.from("resume_analysis").insert([
-          {
-            user_id: user.id,
-            resume_text: text.slice(0, 10000),
-            score: analysis.score,
-            feedback: analysis.feedback,
-          },
-        ]);
+      if (!user) {
+        setError("You must be logged in to analyze your resume.");
+        setLoading(false);
+        return;
       }
+
+      // 3️⃣ Upload file to Supabase Storage
+      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("resumes")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 4️⃣ Get the public URL
+      const { data: publicURLData } = supabase.storage
+        .from("resumes")
+        .getPublicUrl(filePath);
+
+      const fileUrl = publicURLData?.publicUrl ?? "";
+
+      // 5️⃣ Save analysis + file link to database
+      await supabase.from("resume_analysis").insert([
+        {
+          user_id: user.id,
+          resume_text: text.slice(0, 10000),
+          score: analysis.score,
+          feedback: analysis.feedback,
+          file_url: fileUrl,
+        },
+      ]);
 
       setResult(analysis);
     } catch (err: unknown) {
       console.error(err);
       setError(
-        "Failed to analyze the resume. Please ensure the file is valid."
+        "Failed to analyze and upload the resume. Please ensure the file is valid."
       );
     } finally {
       setLoading(false);
@@ -130,17 +151,19 @@ export default function AnalyzeResume() {
       <h1 className="text-2xl font-semibold mb-4">AI Resume Analyzer</h1>
 
       <div className="flex flex-col gap-4">
-        <label htmlFor="resume-upload" className="font-medium" />
-        Upload your resume:
+        <label htmlFor="resume-upload" className="font-medium">
+          Upload your resume (.pdf or .docx):
+        </label>
         <input
           id="resume-upload"
           type="file"
           accept=".pdf,.docx"
           onChange={handleFileUpload}
           className="border rounded p-3"
-          title="Upload your resume file (.pdf or .docx)"
+          title="Upload your resume file"
           placeholder="Choose a resume file"
         />
+
         <button
           onClick={handleAnalyze}
           disabled={loading || !file}
@@ -148,11 +171,17 @@ export default function AnalyzeResume() {
         >
           {loading ? "Analyzing..." : "Analyze Resume"}
         </button>
+
         {error && <p className="text-red-600">{error}</p>}
+
         {result && (
           <div className="mt-6 bg-gray-100 p-4 rounded whitespace-pre-line">
             <h2 className="text-lg font-semibold">Score: {result.score}/100</h2>
             <p className="mt-2 text-gray-700">{result.feedback}</p>
+            <p className="mt-2 text-blue-600 underline">
+              Your resume file has been saved and can be viewed in your
+              dashboard.
+            </p>
           </div>
         )}
       </div>
