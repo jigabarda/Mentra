@@ -2,6 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import {
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,53 +39,86 @@ export default function DashboardPage() {
     totalInterviews: 0,
     totalResumes: 0,
   });
+  const [resumeTrends, setResumeTrends] = useState<ResumeData[]>([]);
+  const [interviewTrends, setInterviewTrends] = useState<InterviewData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Fetch latest resume analysis
-      const { data: resumeData } = await supabase
-        .from("resume_analysis")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      try {
+        // Fetch latest resume analysis
+        const { data: resumeData } = await supabase
+          .from("resume_analysis")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
 
-      // Fetch latest interview session
-      const { data: interviewData } = await supabase
-        .from("interview_sessions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        // Fetch latest interview session
+        const { data: interviewData } = await supabase
+          .from("interview_sessions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
 
-      // Fetch analytics summary
-      const { count: totalResumes } = await supabase
-        .from("resume_analysis")
-        .select("*", { count: "exact", head: true });
+        // Fetch analytics summary
+        const { count: totalResumes } = await supabase
+          .from("resume_analysis")
+          .select("*", { count: "exact", head: true });
 
-      const { count: totalInterviews } = await supabase
-        .from("interview_sessions")
-        .select("*", { count: "exact", head: true });
+        const { count: totalInterviews } = await supabase
+          .from("interview_sessions")
+          .select("*", { count: "exact", head: true });
 
-      const { data: avgScoreData } = await supabase
-        .from("resume_analysis")
-        .select("score");
+        const { data: avgScoreData } = await supabase
+          .from("resume_analysis")
+          .select("score");
 
-      const avgScore =
-        avgScoreData && avgScoreData.length > 0
-          ? avgScoreData.reduce((sum, s) => sum + (s.score ?? 0), 0) /
-            avgScoreData.length
-          : 0;
+        const avgScore =
+          avgScoreData && avgScoreData.length > 0
+            ? avgScoreData.reduce((sum, s) => sum + (s.score ?? 0), 0) /
+              avgScoreData.length
+            : 0;
 
-      setResume(resumeData);
-      setInterview(interviewData);
-      setStats({
-        avgScore: Math.round(avgScore),
-        totalInterviews: totalInterviews || 0,
-        totalResumes: totalResumes || 0,
-      });
-      setLoading(false);
+        // Fetch trend data
+        const { data: resumeTrendData } = await supabase
+          .from("resume_analysis")
+          .select("score, feedback, created_at")
+          .order("created_at", { ascending: true });
+
+        const { data: interviewTrendData } = await supabase
+          .from("interview_sessions")
+          .select("question, feedback, created_at")
+          .order("created_at", { ascending: true });
+
+        setResume(resumeData);
+        setInterview(interviewData);
+        setResumeTrends(
+          resumeTrendData?.map((r) => ({
+            score: r.score ?? 0,
+            feedback: r.feedback ?? "No feedback",
+            created_at: r.created_at,
+          })) || []
+        );
+        setInterviewTrends(
+          interviewTrendData?.map((i) => ({
+            question: i.question ?? "No question",
+            feedback: i.feedback ?? "No feedback",
+            created_at: i.created_at,
+          })) || []
+        );
+
+        setStats({
+          avgScore: Math.round(avgScore),
+          totalInterviews: totalInterviews || 0,
+          totalResumes: totalResumes || 0,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchDashboardData();
@@ -86,7 +130,7 @@ export default function DashboardPage() {
     );
 
   return (
-    <div className="max-w-5xl mx-auto mt-10">
+    <div className="max-w-6xl mx-auto mt-10 px-4">
       <h1 className="text-3xl font-bold mb-6 text-gray-900">
         Career Dashboard
       </h1>
@@ -112,6 +156,68 @@ export default function DashboardPage() {
           </h2>
         </div>
       </div>
+
+      {/* Resume Score Trend Chart */}
+      {resumeTrends.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow mb-10">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">
+            Resume Score Trend
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={resumeTrends}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="created_at"
+                tickFormatter={(date) =>
+                  new Date(date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
+              />
+              <YAxis domain={[0, 100]} />
+              <Tooltip
+                labelFormatter={(date) => new Date(date).toLocaleString()}
+              />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={{ r: 5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Interview Frequency Chart */}
+      {interviewTrends.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">
+            Interview Sessions Over Time
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={interviewTrends}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="created_at"
+                tickFormatter={(date) =>
+                  new Date(date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                }
+              />
+              <YAxis />
+              <Tooltip
+                labelFormatter={(date) => new Date(date).toLocaleString()}
+              />
+              <Bar dataKey="question" fill="#8b5cf6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Recent Resume Feedback */}
       {resume && (
