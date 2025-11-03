@@ -34,7 +34,7 @@ export default function InterviewPage() {
 
       {!messages.length && (
         <textarea
-          className="w-full p-3 border rounded-md mb-4"
+          className="w-full p-3 border rounded-md mb-4 font-sans"
           placeholder="Paste job description here..."
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
@@ -60,7 +60,7 @@ export default function InterviewPage() {
 
       {messages.length > 0 && (
         <textarea
-          className="w-full p-3 border rounded-md mb-4"
+          className="w-full p-3 border rounded-md mb-4 font-sans"
           placeholder="Type your answer..."
           value={userAnswer}
           onChange={(e) => setUserAnswer(e.target.value)}
