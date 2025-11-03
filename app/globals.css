@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "./montserrat.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -118,5 +120,38 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", "Montserrat", "Plus Jakarta Sans", "Poppins",
+      sans-serif;
+    -webkit-user-select: none;
   }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  animation: gradient 10s ease infinite;
+}
+
+@keyframes underline {
+  0% {
+    width: 0;
+    opacity: 0.5;
+  }
+  100% {
+    width: 100%;
+    opacity: 1;
+  }
+}
+.animate-underline {
+  animation: underline 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
