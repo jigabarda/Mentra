@@ -16,27 +16,27 @@ export default function LoginPage() {
       password,
     });
     if (error) setError(error.message);
-    else router.push("/dashboard");
+    else router.push("/");
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <form
         onSubmit={handleLogin}
-        className="bg-white p-6 rounded-2xl shadow-md w-96 space-y-4"
+        className="bg-white p-6 rounded-2xl shadow-md w-96 space-y-4 font-sans"
       >
         <h1 className="text-2xl font-semibold text-center">Welcome Back</h1>
         <input
           type="email"
           placeholder="Email"
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded font-sans"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <input
           type="password"
           placeholder="Password"
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded font-sans"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
